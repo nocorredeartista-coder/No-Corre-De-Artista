@@ -138,23 +138,31 @@ export default function App() {
   const [directions, setDirections] = React.useState<google.maps.DirectionsResult | null>(null);
   const [driverRating, setDriverRating] = React.useState(0);
   const [passengerRating, setPassengerRating] = React.useState(0);
+  const [passengerName, setPassengerName] = React.useState('');
+  const [passengerRatings, setPassengerRatings] = React.useState<{ name: string; rating: number; photo: string }[]>([
+    { name: 'Maria', rating: 5, photo: 'https://picsum.photos/seed/maria/100' },
+    { name: 'João', rating: 4, photo: 'https://picsum.photos/seed/joao/100' },
+    { name: 'Ana', rating: 5, photo: 'https://picsum.photos/seed/ana/100' }
+  ]);
   const [feedback, setFeedback] = React.useState('');
+
+  const googleMapsKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  const isMapConfigured = googleMapsKey && googleMapsKey !== "YOUR_GOOGLE_MAPS_API_KEY";
 
   const { isLoaded } = useJsApiLoader({
     id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || "",
+    googleMapsApiKey: isMapConfigured ? googleMapsKey : "",
     libraries: libraries
   });
 
   React.useEffect(() => {
-    const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    if (!key || key === "YOUR_GOOGLE_MAPS_API_KEY") {
-      toast.error("Google Maps API Key não configurada. O mapa e a busca de endereços podem não funcionar corretamente.", {
-        description: "Adicione sua chave nos Segredos do AI Studio como VITE_GOOGLE_MAPS_API_KEY.",
+    if (!isMapConfigured) {
+      toast.error("Google Maps API Key não configurada", {
+        description: "O mapa e a busca de endereços não funcionarão. Adicione sua chave nos Segredos do AI Studio como VITE_GOOGLE_MAPS_API_KEY.",
         duration: 10000,
       });
     }
-  }, []);
+  }, [isMapConfigured]);
 
   const handleOriginSelect = () => {
     if (originAutocomplete) {
@@ -302,12 +310,35 @@ export default function App() {
 
   const [isCalculating, setIsCalculating] = React.useState(false);
 
-  const onMapClick = (e: google.maps.MapMouseEvent) => {
-    if (e.latLng) {
+  const onMapClick = async (e: google.maps.MapMouseEvent) => {
+    if (e.latLng && isLoaded && isMapConfigured) {
+      const lat = e.latLng.lat();
+      const lng = e.latLng.lng();
+      
+      try {
+        const response = await fetch('/api/reverse-geocode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat, lng }),
+        });
+        const data = await response.json();
+        
+        if (data.address) {
+          setDestination(data.address);
+          toast.success('Destino definido pelo mapa!');
+        } else {
+          setDestination(`${lat},${lng}`);
+          toast.success('Destino definido (coordenadas)!');
+        }
+      } catch (error) {
+        setDestination(`${lat},${lng}`);
+        toast.success('Destino definido (coordenadas)!');
+      }
+    } else if (e.latLng) {
       const lat = e.latLng.lat();
       const lng = e.latLng.lng();
       setDestination(`${lat},${lng}`);
-      toast.success('Destino definido pelo mapa!');
+      toast.success('Destino definido (coordenadas)!');
     }
   };
 
@@ -532,7 +563,7 @@ export default function App() {
                       <Label htmlFor="origin">Origem</Label>
                       <div className="relative">
                         <MapPin className="absolute left-3 top-3 text-slate-400 z-10" size={18} />
-                        {isLoaded ? (
+                        {isLoaded && isMapConfigured ? (
                           <Autocomplete
                             onLoad={(autocomplete) => setOriginAutocomplete(autocomplete)}
                             onPlaceChanged={handleOriginSelect}
@@ -550,7 +581,7 @@ export default function App() {
                             />
                           </Autocomplete>
                         ) : (
-                          <Input id="origin" placeholder="Endereço de partida" className="pl-10 h-12" value={origin} onChange={(e) => setOrigin(e.target.value)} />
+                          <Input id="origin" placeholder="Endereço de partida (Digite endereço completo)" className="pl-10 h-12" value={origin} onChange={(e) => setOrigin(e.target.value)} />
                         )}
                         <div className="absolute right-1 top-1 flex gap-1 z-10">
                           {origin && (
@@ -614,7 +645,7 @@ export default function App() {
                       <Label htmlFor="destination">Destino</Label>
                       <div className="relative">
                         <MapPin className="absolute left-3 top-3 text-slate-400 z-10" size={18} />
-                        {isLoaded ? (
+                        {isLoaded && isMapConfigured ? (
                           <Autocomplete
                             onLoad={(autocomplete) => setDestAutocomplete(autocomplete)}
                             onPlaceChanged={handleDestSelect}
@@ -632,7 +663,7 @@ export default function App() {
                             />
                           </Autocomplete>
                         ) : (
-                          <Input id="destination" placeholder="Endereço de chegada" className="pl-10 h-12" value={destination} onChange={(e) => setDestination(e.target.value)} />
+                          <Input id="destination" placeholder="Endereço de chegada (Digite endereço completo)" className="pl-10 h-12" value={destination} onChange={(e) => setDestination(e.target.value)} />
                         )}
                         <div className="absolute right-1 top-1 flex gap-1 z-10">
                           {destination && (
@@ -694,7 +725,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {isLoaded && (
+                  {isLoaded && isMapConfigured ? (
                     <div className="space-y-2">
                       <Label>Visualize ou clique no mapa para definir o destino</Label>
                       <div className="rounded-xl overflow-hidden border border-slate-200 h-[300px] relative">
@@ -760,7 +791,7 @@ export default function App() {
                         * A quilometragem é calculada com base na rota real via Google Maps para garantir o valor justo.
                       </p>
                     </div>
-                  )}
+                  ) : null}
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
@@ -967,7 +998,7 @@ export default function App() {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="relative">
-                  {isLoaded ? (
+                  {isLoaded && isMapConfigured ? (
                     <GoogleMap
                       mapContainerStyle={mapContainerStyle}
                       center={driverInfo?.location || defaultCenter}
@@ -984,8 +1015,20 @@ export default function App() {
                       )}
                     </GoogleMap>
                   ) : (
-                    <div className="h-[400px] bg-slate-100 flex items-center justify-center text-slate-400">
-                      Carregando mapa...
+                    <div className="h-[400px] bg-slate-100 flex flex-col items-center justify-center text-slate-400 p-8 text-center gap-4">
+                      <div className="h-16 w-16 rounded-full bg-slate-200 flex items-center justify-center text-slate-400">
+                        <MapPin size={32} />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-600">
+                          {!isMapConfigured ? "Configuração de Mapa Necessária" : "Carregando mapa..."}
+                        </p>
+                        {!isMapConfigured && (
+                          <p className="text-xs mt-2 max-w-xs">
+                            Para visualizar o mapa, você precisa configurar a chave <strong>VITE_GOOGLE_MAPS_API_KEY</strong> nos Segredos do AI Studio.
+                          </p>
+                        )}
+                      </div>
                     </div>
                   )}
                   
@@ -1029,8 +1072,13 @@ export default function App() {
                   </div>
 
                   <div className="flex items-center gap-3 p-4 bg-orange-50 rounded-xl border border-orange-100">
-                    <div className="h-10 w-10 rounded-full bg-orange-600 text-white flex items-center justify-center shrink-0">
-                      <User size={20} />
+                    <div className="h-10 w-10 rounded-full bg-orange-600 text-white flex items-center justify-center shrink-0 overflow-hidden">
+                      <img 
+                        src="input_file_1.png" 
+                        alt="Juan" 
+                        className="h-full w-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
                     </div>
                     <div className="flex-1">
                       <p className="font-bold text-slate-900">{driverInfo?.driverName?.split(' ')[0] || "Juan"}</p>
@@ -1072,7 +1120,7 @@ export default function App() {
                     <div className="flex items-center gap-4">
                       <div className="h-16 w-16 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 overflow-hidden border-2 border-orange-200">
                         <img 
-                          src="https://picsum.photos/seed/driver-juan/200" 
+                          src="input_file_1.png" 
                           alt="Juan" 
                           className="h-full w-full object-cover"
                           referrerPolicy="no-referrer"
@@ -1121,26 +1169,68 @@ export default function App() {
                     </Button>
                   </div>
 
-                  {/* Driver Rates Passenger (Simulated for Demo) */}
+                  {/* Driver Rates Passenger */}
                   <div className="space-y-6 border-l md:pl-12 border-slate-100">
                     <div className="flex items-center gap-4">
                       <div className="h-16 w-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 overflow-hidden border-2 border-slate-200">
                         <User size={32} />
                       </div>
                       <div>
-                        <h4 className="font-bold text-lg text-slate-900">Registro de Passageiros</h4>
-                        <p className="text-sm text-slate-500">Avaliação do Motorista</p>
+                        <h4 className="font-bold text-lg text-slate-900">Avaliar Passageiro</h4>
+                        <p className="text-sm text-slate-500">Área Exclusiva do Motorista</p>
                       </div>
                     </div>
 
-                    <div className="bg-slate-50 p-4 rounded-2xl space-y-4">
-                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Últimos Passageiros</p>
+                    <div className="space-y-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <div className="space-y-2">
+                        <Label htmlFor="passengerName">Nome do Passageiro</Label>
+                        <Input 
+                          id="passengerName"
+                          placeholder="Ex: Carlos"
+                          value={passengerName}
+                          onChange={(e) => setPassengerName(e.target.value)}
+                          className="bg-white"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Nota para o passageiro</Label>
+                        <div className="flex gap-2">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button 
+                              key={star}
+                              onClick={() => setPassengerRating(star)}
+                              className={`p-1 transition-transform hover:scale-110 ${passengerRating >= star ? 'text-yellow-400' : 'text-slate-200'}`}
+                            >
+                              <Star size={24} fill={passengerRating >= star ? 'currentColor' : 'none'} />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <Button 
+                        className="w-full bg-slate-900 hover:bg-slate-800 text-white h-10 rounded-xl font-bold text-xs"
+                        disabled={!passengerName || passengerRating === 0}
+                        onClick={() => {
+                          const newRating = {
+                            name: passengerName,
+                            rating: passengerRating,
+                            photo: `https://picsum.photos/seed/${passengerName.toLowerCase()}/100`
+                          };
+                          setPassengerRatings([newRating, ...passengerRatings]);
+                          toast.success(`Avaliação de ${passengerName} salva com sucesso!`);
+                          setPassengerName('');
+                          setPassengerRating(0);
+                        }}
+                      >
+                        SALVAR AVALIAÇÃO PRIVADA
+                      </Button>
+                    </div>
+
+                    <div className="space-y-4">
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Histórico Privado de Avaliações</p>
                       
-                      {[
-                        { name: 'Maria', rating: 5, photo: 'https://picsum.photos/seed/maria/100' },
-                        { name: 'João', rating: 4, photo: 'https://picsum.photos/seed/joao/100' },
-                        { name: 'Ana', rating: 5, photo: 'https://picsum.photos/seed/ana/100' }
-                      ].map((passenger, i) => (
+                      {passengerRatings.map((passenger, i) => (
                         <div key={i} className="flex items-center justify-between bg-white p-3 rounded-xl shadow-sm border border-slate-100">
                           <div className="flex items-center gap-3">
                             <img 
