@@ -1,0 +1,5 @@
+{
+  "name": "No Corre Mob",
+  "description": "Serviço de mobilidade urbana especializado: cuidado, segurança e responsabilidade para idosos, artistas e transporte de equipamentos.",
+  "requestFramePermissions": ["geolocation"]
+}
