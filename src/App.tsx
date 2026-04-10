@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Car, User, Clock, Phone, MapPin, MessageSquare, PhoneCall, ExternalLink, X, Star, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Car, User, Clock, Phone, MapPin, MessageSquare, PhoneCall, ExternalLink, X, Star, ThumbsUp, ThumbsDown, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -560,7 +560,15 @@ export default function App() {
                 <form onSubmit={handleQuote} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="origin">Origem</Label>
+                      <div className="flex justify-between items-center">
+                        <Label htmlFor="origin">Origem</Label>
+                        {isMapConfigured && (
+                          <span className={`text-[10px] font-bold flex items-center gap-1 ${isLoaded ? 'text-green-600' : 'text-orange-500'}`}>
+                            <div className={`h-1.5 w-1.5 rounded-full ${isLoaded ? 'bg-green-500' : 'bg-orange-500 animate-pulse'}`}></div>
+                            {isLoaded ? 'GOOGLE MAPS ATIVO' : 'CARREGANDO MAPS...'}
+                          </span>
+                        )}
+                      </div>
                       <div className="relative">
                         <MapPin className="absolute left-3 top-3 text-slate-400 z-10" size={18} />
                         {isLoaded && isMapConfigured ? (
@@ -569,7 +577,8 @@ export default function App() {
                             onPlaceChanged={handleOriginSelect}
                             options={{ 
                               fields: ["address_components", "geometry", "formatted_address", "name"],
-                              componentRestrictions: { country: "br" }
+                              componentRestrictions: { country: "br" },
+                              types: ["address", "establishment"]
                             }}
                           >
                             <Input 
@@ -578,6 +587,7 @@ export default function App() {
                               className="pl-10 pr-20 h-12" 
                               value={origin} 
                               onChange={(e) => setOrigin(e.target.value)} 
+                              autoComplete="off"
                             />
                           </Autocomplete>
                         ) : (
@@ -642,7 +652,15 @@ export default function App() {
                       )}
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="destination">Destino</Label>
+                      <div className="flex justify-between items-center">
+                        <Label htmlFor="destination">Destino</Label>
+                        {isMapConfigured && (
+                          <span className={`text-[10px] font-bold flex items-center gap-1 ${isLoaded ? 'text-green-600' : 'text-orange-500'}`}>
+                            <div className={`h-1.5 w-1.5 rounded-full ${isLoaded ? 'bg-green-500' : 'bg-orange-500 animate-pulse'}`}></div>
+                            {isLoaded ? 'GOOGLE MAPS ATIVO' : 'CARREGANDO MAPS...'}
+                          </span>
+                        )}
+                      </div>
                       <div className="relative">
                         <MapPin className="absolute left-3 top-3 text-slate-400 z-10" size={18} />
                         {isLoaded && isMapConfigured ? (
@@ -651,7 +669,8 @@ export default function App() {
                             onPlaceChanged={handleDestSelect}
                             options={{ 
                               fields: ["address_components", "geometry", "formatted_address", "name"],
-                              componentRestrictions: { country: "br" }
+                              componentRestrictions: { country: "br" },
+                              types: ["address", "establishment"]
                             }}
                           >
                             <Input 
@@ -660,6 +679,7 @@ export default function App() {
                               className="pl-10 pr-20 h-12" 
                               value={destination} 
                               onChange={(e) => setDestination(e.target.value)} 
+                              autoComplete="off"
                             />
                           </Autocomplete>
                         ) : (
@@ -1024,9 +1044,24 @@ export default function App() {
                           {!isMapConfigured ? "Configuração de Mapa Necessária" : "Carregando mapa..."}
                         </p>
                         {!isMapConfigured && (
-                          <p className="text-xs mt-2 max-w-xs">
-                            Para visualizar o mapa, você precisa configurar a chave <strong>VITE_GOOGLE_MAPS_API_KEY</strong> nos Segredos do AI Studio.
-                          </p>
+                          <div className="mt-4 p-4 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3">
+                            <div className="h-8 w-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
+                              <AlertCircle size={18} />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-bold text-red-900">Sugestões de Endereço Desativadas</p>
+                              <p className="text-xs text-red-700 mt-1 leading-relaxed">
+                                A lista de sugestões do Google Maps não está aparecendo porque a chave de API não foi configurada. 
+                                <strong> Para ativar as sugestões:</strong>
+                              </p>
+                              <ul className="text-[10px] text-red-600 mt-2 list-disc pl-4 space-y-1">
+                                <li>Acesse as <strong>Configurações (Settings)</strong> do AI Studio.</li>
+                                <li>Vá em <strong>Secrets</strong>.</li>
+                                <li>Adicione <strong>VITE_GOOGLE_MAPS_API_KEY</strong> com sua chave do Google Cloud.</li>
+                                <li>Certifique-se de que a <strong>Places API</strong> está ativada no seu console do Google Cloud.</li>
+                              </ul>
+                            </div>
+                          </div>
                         )}
                       </div>
                     </div>
