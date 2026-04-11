@@ -1,78 +1,16 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Car, User, Clock, Phone, MapPin, MessageSquare, PhoneCall, ExternalLink, X, Star, ThumbsUp, ThumbsDown, AlertCircle } from 'lucide-react';
+import { Car, User, Clock, Phone, MapPin, MessageSquare, PhoneCall, ExternalLink, X, Star, ThumbsUp, ThumbsDown, AlertCircle, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Toaster } from '@/components/ui/sonner';
+import { Textarea } from '@/components/ui/textarea';
+import { Toaster } from 'sonner';
 import { toast } from 'sonner';
-import { calculateQuote, RideType, QuoteResult } from '@/src/lib/pricing';
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { io } from 'socket.io-client';
-import { GoogleMap, useJsApiLoader, Marker, Autocomplete, DirectionsRenderer } from '@react-google-maps/api';
-
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
-
-const libraries: ("places")[] = ["places"];
-
-const mapContainerStyle = {
-  width: '100%',
-  height: '400px'
-};
-
-const defaultCenter = {
-  lat: -23.5505,
-  lng: -46.6333
-};
-
-function PaymentForm({ amount, onSuccess }: { amount: number; onSuccess: () => void }) {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [isProcessing, setIsProcessing] = React.useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!stripe || !elements) return;
-
-    setIsProcessing(true);
-
-    const { error } = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        return_url: window.location.href,
-      },
-      redirect: 'if_required',
-    });
-
-    if (error) {
-      toast.error(error.message || 'Ocorreu um erro ao processar o pagamento.');
-    } else {
-      toast.success('Pagamento realizado com sucesso!');
-      onSuccess();
-    }
-
-    setIsProcessing(false);
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <PaymentElement />
-      <Button 
-        type="submit" 
-        disabled={!stripe || isProcessing} 
-        className="w-full h-12 bg-orange-600 hover:bg-orange-700 text-white rounded-xl"
-      >
-        {isProcessing ? 'Processando...' : `Pagar R$ ${amount.toFixed(2)}`}
-      </Button>
-    </form>
-  );
-}
-
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 export default function App() {
@@ -122,20 +60,11 @@ export default function App() {
   const [activeTab, setActiveTab] = React.useState('home');
   const [origin, setOrigin] = React.useState('');
   const [destination, setDestination] = React.useState('');
-  const [rideType, setRideType] = React.useState<RideType>('comum');
-  const [rideTime, setRideTime] = React.useState('12:00');
-  const [isSpecialEvent, setIsSpecialEvent] = React.useState(false);
-  const [demandLevel, setDemandLevel] = React.useState<'low' | 'normal' | 'high' | 'peak'>('normal');
-  const [quote, setQuote] = React.useState<QuoteResult | null>(null);
-  const [clientSecret, setClientSecret] = React.useState<string | null>(null);
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = React.useState(false);
+  const [rideType, setRideType] = React.useState<string>('comum');
+  const [rideTime, setRideTime] = React.useState('');
+  const [isSpecialEvent, setIsSpecialEvent] = React.useState('nao');
+  const [observations, setObservations] = React.useState('');
   const [driverInfo, setDriverInfo] = React.useState<{ location: { lat: number; lng: number }; car: string; plate: string; driverName?: string } | null>(null);
-  const [originAutocomplete, setOriginAutocomplete] = React.useState<google.maps.places.Autocomplete | null>(null);
-  const [destAutocomplete, setDestAutocomplete] = React.useState<google.maps.places.Autocomplete | null>(null);
-  const [mapCenter, setMapCenter] = React.useState(defaultCenter);
-  const [originDetails, setOriginDetails] = React.useState<{ city?: string; state?: string; zip?: string; full?: string } | null>(null);
-  const [destDetails, setDestDetails] = React.useState<{ city?: string; state?: string; zip?: string; full?: string } | null>(null);
-  const [directions, setDirections] = React.useState<google.maps.DirectionsResult | null>(null);
   const [driverRating, setDriverRating] = React.useState(0);
   const [passengerRating, setPassengerRating] = React.useState(0);
   const [passengerName, setPassengerName] = React.useState('');
@@ -146,246 +75,34 @@ export default function App() {
   ]);
   const [feedback, setFeedback] = React.useState('');
 
-  const googleMapsKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-  const isMapConfigured = googleMapsKey && googleMapsKey !== "YOUR_GOOGLE_MAPS_API_KEY";
-
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: isMapConfigured ? googleMapsKey : "",
-    libraries: libraries
-  });
-
-  React.useEffect(() => {
-    if (!isMapConfigured) {
-      toast.error("Google Maps API Key não configurada", {
-        description: "O mapa e a busca de endereços não funcionarão. Adicione sua chave nos Segredos do AI Studio como VITE_GOOGLE_MAPS_API_KEY.",
-        duration: 10000,
-      });
-    }
-  }, [isMapConfigured]);
-
-  const handleOriginSelect = () => {
-    if (originAutocomplete) {
-      const place = originAutocomplete.getPlace();
-      if (place.formatted_address) {
-        setOrigin(place.formatted_address);
-        
-        const city = place.address_components?.find(c => c.types.includes('administrative_area_level_2') || c.types.includes('locality'))?.long_name;
-        const state = place.address_components?.find(c => c.types.includes('administrative_area_level_1'))?.short_name;
-        const zip = place.address_components?.find(c => c.types.includes('postal_code'))?.long_name;
-        
-        setOriginDetails({ city, state, zip, full: place.formatted_address });
-      } else if (place.name) {
-        setOrigin(place.name);
-      }
-      
-      if (place.geometry && place.geometry.location) {
-        setMapCenter({
-          lat: place.geometry.location.lat(),
-          lng: place.geometry.location.lng()
-        });
-      }
-    }
-  };
-
-  const handleDestSelect = () => {
-    if (destAutocomplete) {
-      const place = destAutocomplete.getPlace();
-      if (place.formatted_address) {
-        setDestination(place.formatted_address);
-
-        const city = place.address_components?.find(c => c.types.includes('administrative_area_level_2') || c.types.includes('locality'))?.long_name;
-        const state = place.address_components?.find(c => c.types.includes('administrative_area_level_1'))?.short_name;
-        const zip = place.address_components?.find(c => c.types.includes('postal_code'))?.long_name;
-        
-        setDestDetails({ city, state, zip, full: place.formatted_address });
-      } else if (place.name) {
-        setDestination(place.name);
-      }
-
-      if (place.geometry && place.geometry.location) {
-        setMapCenter({
-          lat: place.geometry.location.lat(),
-          lng: place.geometry.location.lng()
-        });
-      }
-    }
-  };
-
-  const calculateRoute = React.useCallback(() => {
-    if (!origin || !destination || !isLoaded) return;
-
-    const directionsService = new google.maps.DirectionsService();
-    directionsService.route(
-      {
-        origin: origin,
-        destination: destination,
-        travelMode: google.maps.TravelMode.DRIVING,
-      },
-      (result, status) => {
-        if (status === google.maps.DirectionsStatus.OK) {
-          setDirections(result);
-        } else {
-          console.error(`error fetching directions ${result}`);
-        }
-      }
-    );
-  }, [origin, destination, isLoaded]);
-
-  React.useEffect(() => {
-    if (origin && destination) {
-      calculateRoute();
-    } else {
-      setDirections(null);
-    }
-  }, [origin, destination, calculateRoute]);
-
-  const getCurrentLocation = (target: 'origin' | 'destination') => {
-    if (!navigator.geolocation) {
-      toast.error('Geolocalização não é suportada pelo seu navegador.');
-      return;
-    }
-
-    toast.info('Obtendo sua localização...');
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        
-        try {
-          const response = await fetch('/api/reverse-geocode', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lat: latitude, lng: longitude }),
-          });
-          const data = await response.json();
-          
-          if (target === 'origin') {
-            setOrigin(data.address);
-          } else {
-            setDestination(data.address);
-          }
-          toast.success('Localização obtida com sucesso!');
-        } catch (error) {
-          console.error('Reverse geocode error:', error);
-          const locationStr = `${latitude},${longitude}`;
-          if (target === 'origin') {
-            setOrigin(locationStr);
-          } else {
-            setDestination(locationStr);
-          }
-          toast.success('Localização obtida (coordenadas)!');
-        }
-      },
-      (error) => {
-        toast.error('Não foi possível obter sua localização. Verifique as permissões.');
-      }
-    );
-  };
-
-  React.useEffect(() => {
-    if (origin.includes(',')) {
-      const [lat, lng] = origin.split(',').map(parseFloat);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        setMapCenter({ lat, lng });
-      }
-    } else if (destination.includes(',')) {
-      const [lat, lng] = destination.split(',').map(parseFloat);
-      if (!isNaN(lat) && !isNaN(lng)) {
-        setMapCenter({ lat, lng });
-      }
-    }
-  }, [origin, destination]);
-
-  React.useEffect(() => {
-    const socket = io();
-
-    socket.on('driver:location', (data) => {
-      setDriverInfo(data);
-    });
-
-    return () => {
-      socket.disconnect();
-    };
-  }, []);
-
-  const [isCalculating, setIsCalculating] = React.useState(false);
-
-  const onMapClick = async (e: google.maps.MapMouseEvent) => {
-    if (e.latLng && isLoaded && isMapConfigured) {
-      const lat = e.latLng.lat();
-      const lng = e.latLng.lng();
-      
-      try {
-        const response = await fetch('/api/reverse-geocode', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ lat, lng }),
-        });
-        const data = await response.json();
-        
-        if (data.address) {
-          setDestination(data.address);
-          toast.success('Destino definido pelo mapa!');
-        } else {
-          setDestination(`${lat},${lng}`);
-          toast.success('Destino definido (coordenadas)!');
-        }
-      } catch (error) {
-        setDestination(`${lat},${lng}`);
-        toast.success('Destino definido (coordenadas)!');
-      }
-    } else if (e.latLng) {
-      const lat = e.latLng.lat();
-      const lng = e.latLng.lng();
-      setDestination(`${lat},${lng}`);
-      toast.success('Destino definido (coordenadas)!');
-    }
-  };
-
-  const handleQuote = async (e: React.FormEvent) => {
+  const handleQuote = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!origin || !destination) {
-      toast.error('Por favor, preencha origem e destino.');
+    if (!origin || !destination || !rideType || !rideTime) {
+      toast.error('Por favor, preencha os campos obrigatórios: Origem, Destino, Tipo de Corrida e Horário.');
       return;
     }
 
-    setIsCalculating(true);
-    try {
-      const response = await fetch('/api/calculate-distance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ origin, destination }),
-      });
+    const rideTypeLabels: Record<string, string> = {
+      'comum': 'Corrida comum',
+      'idoso': 'Idoso com cuidado específico',
+      'artista': 'Artista com equipamento',
+      'volume': 'Transporte de volume'
+    };
 
-      const data = await response.json();
-      
-      const result = calculateQuote({
-        origin,
-        destination,
-        type: rideType,
-        distanceKm: data.distanceKm,
-        time: rideTime,
-        isSpecialEvent,
-        demandLevel,
-      });
+    const message = `Olá, quero cotar uma viagem no No Corre Mob.
 
-      // Override estimatedTime with real data if available
-      if (!data.isSimulated) {
-        result.estimatedTime = data.durationText;
-      }
+Origem: ${origin}
+Destino: ${destination}
+Tipo de corrida: ${rideTypeLabels[rideType] || rideType}
+Horário desejado: ${rideTime}
+Evento especial: ${isSpecialEvent === 'sim' ? 'Sim' : 'Não'}
+Observações: ${observations || 'Nenhuma'}
 
-      setQuote(result);
-      if (data.isSimulated) {
-        toast.info('Cotação realizada (modo simulação).');
-      } else {
-        toast.success('Cotação realizada com sucesso!');
-      }
-    } catch (error) {
-      console.error('Error calculating quote:', error);
-      toast.error('Erro ao calcular cotação. Tente novamente.');
-    } finally {
-      setIsCalculating(false);
-    }
+Gostaria de receber uma estimativa.`;
+
+    const whatsappUrl = `https://wa.me/5511939104626?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+    toast.success('Redirecionando para o WhatsApp...');
   };
 
   const handleWhatsApp = () => {
@@ -397,26 +114,8 @@ export default function App() {
   };
 
   const startPayment = async () => {
-    if (!quote) return;
-
-    try {
-      const response = await fetch('/api/create-payment-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: quote.estimatedValue }),
-      });
-
-      const data = await response.json();
-      if (data.clientSecret) {
-        setClientSecret(data.clientSecret);
-        setIsPaymentModalOpen(true);
-      } else {
-        toast.error('Erro ao iniciar pagamento. Verifique se o Stripe está configurado.');
-      }
-    } catch (error) {
-      console.error('Payment error:', error);
-      toast.error('Erro ao conectar com o servidor de pagamentos.');
-    }
+    // Payment functionality disabled or simplified as per request
+    toast.info('Funcionalidade de pagamento em desenvolvimento.');
   };
 
   return (
@@ -552,449 +251,114 @@ export default function App() {
           {/* QUOTE TAB */}
           <TabsContent value="quote" className="mt-0">
             <Card className="border-none shadow-xl bg-white overflow-hidden">
-              <div className="bg-orange-600 p-6 text-white">
-                <CardTitle className="text-2xl">💬 COTAR VIAGEM</CardTitle>
-                <CardDescription className="text-orange-100">Preencha os dados abaixo para uma estimativa real.</CardDescription>
+              <div className="bg-orange-600 p-6 text-white text-center">
+                <CardTitle className="text-2xl flex items-center justify-center gap-2">
+                  <MessageSquare size={24} /> COTAR VIAGEM
+                </CardTitle>
+                <CardDescription className="text-orange-100">Preencha os dados e receba sua estimativa via WhatsApp.</CardDescription>
               </div>
               <CardContent className="p-8">
                 <form onSubmit={handleQuote} className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label htmlFor="origin">Origem</Label>
-                        {isMapConfigured && (
-                          <span className={`text-[10px] font-bold flex items-center gap-1 ${isLoaded ? 'text-green-600' : 'text-orange-500'}`}>
-                            <div className={`h-1.5 w-1.5 rounded-full ${isLoaded ? 'bg-green-500' : 'bg-orange-500 animate-pulse'}`}></div>
-                            {isLoaded ? 'GOOGLE MAPS ATIVO' : 'CARREGANDO MAPS...'}
-                          </span>
-                        )}
-                      </div>
+                      <Label htmlFor="origin" className="font-bold">Endereço de Origem *</Label>
                       <div className="relative">
-                        <MapPin className="absolute left-3 top-3 text-slate-400 z-10" size={18} />
-                        {isLoaded && isMapConfigured ? (
-                          <Autocomplete
-                            onLoad={(autocomplete) => setOriginAutocomplete(autocomplete)}
-                            onPlaceChanged={handleOriginSelect}
-                            options={{ 
-                              fields: ["address_components", "geometry", "formatted_address", "name"],
-                              componentRestrictions: { country: "br" },
-                              types: ["address", "establishment"]
-                            }}
-                          >
-                            <Input 
-                              id="origin" 
-                              placeholder="Endereço de partida e número" 
-                              className="pl-10 pr-20 h-12" 
-                              value={origin} 
-                              onChange={(e) => setOrigin(e.target.value)} 
-                              autoComplete="off"
-                            />
-                          </Autocomplete>
-                        ) : (
-                          <Input id="origin" placeholder="Endereço de partida (Digite endereço completo)" className="pl-10 h-12" value={origin} onChange={(e) => setOrigin(e.target.value)} />
-                        )}
-                        <div className="absolute right-1 top-1 flex gap-1 z-10">
-                          {origin && (
-                            <Button 
-                              type="button"
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-10 w-10 text-slate-400 hover:text-slate-600"
-                              onClick={() => { setOrigin(''); setOriginDetails(null); }}
-                            >
-                              <X size={16} />
-                            </Button>
-                          )}
-                          <Button 
-                            type="button"
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-10 w-10 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                            onClick={() => getCurrentLocation('origin')}
-                            title="Usar minha localização atual"
-                          >
-                            <MapPin size={18} />
-                          </Button>
-                        </div>
+                        <MapPin className="absolute left-3 top-3 text-slate-400" size={18} />
+                        <Input 
+                          id="origin" 
+                          placeholder="Ex: Rua Augusta, 1000 - São Paulo" 
+                          className="pl-10 h-12 rounded-xl border-slate-200 focus:border-orange-500" 
+                          value={origin} 
+                          onChange={(e) => setOrigin(e.target.value)} 
+                          required
+                        />
                       </div>
-                      {originDetails && (
-                        <motion.div 
-                          initial={{ opacity: 0, y: -5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="p-3 bg-orange-50/50 rounded-xl border border-orange-100 text-[11px] flex justify-between items-center shadow-sm"
-                        >
-                          <div className="flex flex-col gap-0.5">
-                            <div className="flex items-center gap-1.5 text-slate-700 font-bold">
-                              <MapPin size={12} className="text-orange-600" />
-                              <span>{originDetails.city}{originDetails.state ? `, ${originDetails.state}` : ''}</span>
-                            </div>
-                            {originDetails.zip && (
-                              <div className="text-slate-500 pl-4">
-                                CEP: {originDetails.zip}
-                              </div>
-                            )}
-                          </div>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-8 text-orange-600 hover:text-orange-700 hover:bg-orange-100/50 text-[10px] font-bold"
-                            asChild
-                          >
-                            <a 
-                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(originDetails.full || origin)}`} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                            >
-                              VER NO MAPA <ExternalLink size={12} className="ml-1" />
-                            </a>
-                          </Button>
-                        </motion.div>
-                      )}
                     </div>
                     <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <Label htmlFor="destination">Destino</Label>
-                        {isMapConfigured && (
-                          <span className={`text-[10px] font-bold flex items-center gap-1 ${isLoaded ? 'text-green-600' : 'text-orange-500'}`}>
-                            <div className={`h-1.5 w-1.5 rounded-full ${isLoaded ? 'bg-green-500' : 'bg-orange-500 animate-pulse'}`}></div>
-                            {isLoaded ? 'GOOGLE MAPS ATIVO' : 'CARREGANDO MAPS...'}
-                          </span>
-                        )}
-                      </div>
+                      <Label htmlFor="destination" className="font-bold">Endereço de Destino *</Label>
                       <div className="relative">
-                        <MapPin className="absolute left-3 top-3 text-slate-400 z-10" size={18} />
-                        {isLoaded && isMapConfigured ? (
-                          <Autocomplete
-                            onLoad={(autocomplete) => setDestAutocomplete(autocomplete)}
-                            onPlaceChanged={handleDestSelect}
-                            options={{ 
-                              fields: ["address_components", "geometry", "formatted_address", "name"],
-                              componentRestrictions: { country: "br" },
-                              types: ["address", "establishment"]
-                            }}
-                          >
-                            <Input 
-                              id="destination" 
-                              placeholder="Digite o endereço e número (Ex: Rua Augusta, 1000)" 
-                              className="pl-10 pr-20 h-12" 
-                              value={destination} 
-                              onChange={(e) => setDestination(e.target.value)} 
-                              autoComplete="off"
-                            />
-                          </Autocomplete>
-                        ) : (
-                          <Input id="destination" placeholder="Endereço de chegada (Digite endereço completo)" className="pl-10 h-12" value={destination} onChange={(e) => setDestination(e.target.value)} />
-                        )}
-                        <div className="absolute right-1 top-1 flex gap-1 z-10">
-                          {destination && (
-                            <Button 
-                              type="button"
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-10 w-10 text-slate-400 hover:text-slate-600"
-                              onClick={() => { setDestination(''); setDestDetails(null); }}
-                            >
-                              <X size={16} />
-                            </Button>
-                          )}
-                          <Button 
-                            type="button"
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-10 w-10 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                            onClick={() => getCurrentLocation('destination')}
-                            title="Usar minha localização atual"
-                          >
-                            <MapPin size={18} />
-                          </Button>
-                        </div>
+                        <MapPin className="absolute left-3 top-3 text-slate-400" size={18} />
+                        <Input 
+                          id="destination" 
+                          placeholder="Ex: Av. Paulista, 1500 - São Paulo" 
+                          className="pl-10 h-12 rounded-xl border-slate-200 focus:border-orange-500" 
+                          value={destination} 
+                          onChange={(e) => setDestination(e.target.value)} 
+                          required
+                        />
                       </div>
-                      {destDetails && (
-                        <motion.div 
-                          initial={{ opacity: 0, y: -5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="p-3 bg-orange-50/50 rounded-xl border border-orange-100 text-[11px] flex justify-between items-center shadow-sm"
-                        >
-                          <div className="flex flex-col gap-0.5">
-                            <div className="flex items-center gap-1.5 text-slate-700 font-bold">
-                              <MapPin size={12} className="text-orange-600" />
-                              <span>{destDetails.city}{destDetails.state ? `, ${destDetails.state}` : ''}</span>
-                            </div>
-                            {destDetails.zip && (
-                              <div className="text-slate-500 pl-4">
-                                CEP: {destDetails.zip}
-                              </div>
-                            )}
-                          </div>
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="h-8 text-orange-600 hover:text-orange-700 hover:bg-orange-100/50 text-[10px] font-bold"
-                            asChild
-                          >
-                            <a 
-                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destDetails.full || destination)}`} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                            >
-                              VER NO MAPA <ExternalLink size={12} className="ml-1" />
-                            </a>
-                          </Button>
-                        </motion.div>
-                      )}
                     </div>
                   </div>
 
-                  {isLoaded && isMapConfigured ? (
-                    <div className="space-y-2">
-                      <Label>Visualize ou clique no mapa para definir o destino</Label>
-                      <div className="rounded-xl overflow-hidden border border-slate-200 h-[300px] relative">
-                        <GoogleMap
-                          mapContainerStyle={{ width: '100%', height: '100%' }}
-                          center={mapCenter}
-                          zoom={13}
-                          onClick={onMapClick}
-                          options={{
-                            disableDefaultUI: true,
-                            zoomControl: true,
-                            styles: [
-                              {
-                                featureType: "poi",
-                                elementType: "labels",
-                                stylers: [{ visibility: "off" }]
-                              }
-                            ]
-                          }}
-                        >
-                          {directions ? (
-                            <DirectionsRenderer 
-                              directions={directions}
-                              options={{
-                                polylineOptions: {
-                                  strokeColor: "#ea580c",
-                                  strokeWeight: 5,
-                                  strokeOpacity: 0.8
-                                },
-                                markerOptions: {
-                                  icon: 'https://maps.google.com/mapfiles/ms/icons/orange-dot.png'
-                                }
-                              }}
-                            />
-                          ) : (
-                            <>
-                              {origin.includes(',') && (
-                                <Marker 
-                                  position={{ lat: parseFloat(origin.split(',')[0]), lng: parseFloat(origin.split(',')[1]) }} 
-                                  label="A"
-                                />
-                              )}
-                              {destination.includes(',') && (
-                                <Marker 
-                                  position={{ lat: parseFloat(destination.split(',')[0]), lng: parseFloat(destination.split(',')[1]) }} 
-                                  label="B"
-                                />
-                              )}
-                            </>
-                          )}
-                        </GoogleMap>
-                        <Button 
-                          type="button"
-                          variant="secondary" 
-                          size="sm" 
-                          className="absolute top-2 right-2 bg-white/90 hover:bg-white shadow-md text-slate-700 text-[10px] h-8"
-                          onClick={() => getCurrentLocation('origin')}
-                        >
-                          <MapPin size={14} className="mr-1" /> Centralizar em Mim
-                        </Button>
-                      </div>
-                      <p className="text-[10px] text-slate-500 italic">
-                        * A quilometragem é calculada com base na rota real via Google Maps para garantir o valor justo.
-                      </p>
-                    </div>
-                  ) : null}
-
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="type">Tipo de Corrida</Label>
-                      <Select value={rideType} onValueChange={(v) => setRideType(v as RideType)}>
-                        <SelectTrigger className="h-12">
+                      <Label htmlFor="type" className="font-bold">Tipo de Corrida *</Label>
+                      <Select value={rideType} onValueChange={setRideType}>
+                        <SelectTrigger className="h-12 rounded-xl border-slate-200">
                           <SelectValue placeholder="Selecione o tipo" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="comum">Comum (R$ 4/km + taxa)</SelectItem>
-                          <SelectItem value="idoso">Idoso (Cuidado especial)</SelectItem>
-                          <SelectItem value="artista">Artista (Equipamentos)</SelectItem>
-                          <SelectItem value="equipamento">Transporte de Volume</SelectItem>
+                          <SelectItem value="comum">Corrida comum</SelectItem>
+                          <SelectItem value="idoso">Idoso com cuidado específico</SelectItem>
+                          <SelectItem value="artista">Artista com equipamento</SelectItem>
+                          <SelectItem value="volume">Transporte de volume</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    {rideType === 'artista' || rideType === 'equipamento' ? (
-                      <div className="space-y-2">
-                        <Label htmlFor="volume">Volume de Equipamento</Label>
-                        <Select defaultValue="medium">
-                          <SelectTrigger className="h-12">
-                            <SelectValue placeholder="Selecione o volume" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="low">Pequeno (R$ 10 adicional)</SelectItem>
-                            <SelectItem value="medium">Médio (R$ 20 adicional)</SelectItem>
-                            <SelectItem value="high">Grande (R$ 30 adicional)</SelectItem>
-                          </SelectContent>
-                        </Select>
+                    <div className="space-y-2">
+                      <Label htmlFor="time" className="font-bold">Horário Desejado *</Label>
+                      <div className="relative">
+                        <Clock className="absolute left-3 top-3 text-slate-400" size={18} />
+                        <Input 
+                          id="time" 
+                          type="time" 
+                          className="pl-10 h-12 rounded-xl border-slate-200" 
+                          value={rideTime} 
+                          onChange={(e) => setRideTime(e.target.value)} 
+                          required
+                        />
                       </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <Label htmlFor="time">Horário Desejado</Label>
-                        <div className="relative">
-                          <Clock className="absolute left-3 top-3 text-slate-400" size={18} />
-                          <Input id="time" type="time" className="pl-10 h-12" value={rideTime} onChange={(e) => setRideTime(e.target.value)} />
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="demand">Nível de Demanda (Simulado)</Label>
-                      <Select value={demandLevel} onValueChange={(v) => setDemandLevel(v as any)}>
-                        <SelectTrigger className="h-12">
-                          <SelectValue placeholder="Selecione a demanda" />
+                      <Label htmlFor="specialEvent" className="font-bold">Evento Especial? *</Label>
+                      <Select value={isSpecialEvent} onValueChange={setIsSpecialEvent}>
+                        <SelectTrigger className="h-12 rounded-xl border-slate-200">
+                          <SelectValue placeholder="Selecione" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="low">Baixa (Desconto)</SelectItem>
-                          <SelectItem value="normal">Normal</SelectItem>
-                          <SelectItem value="high">Alta (+20%)</SelectItem>
-                          <SelectItem value="peak">Pico (+50%)</SelectItem>
+                          <SelectItem value="sim">Sim</SelectItem>
+                          <SelectItem value="nao">Não</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="flex items-center space-x-2 p-3 bg-slate-50 rounded-xl border border-slate-100 self-end h-12">
-                      <input 
-                        type="checkbox" 
-                        id="specialEvent" 
-                        className="h-5 w-5 rounded border-slate-300 text-orange-600 focus:ring-orange-500"
-                        checked={isSpecialEvent}
-                        onChange={(e) => setIsSpecialEvent(e.target.checked)}
+                    <div className="space-y-2">
+                      <Label htmlFor="obs" className="font-bold">Observações</Label>
+                      <Textarea 
+                        id="obs" 
+                        placeholder="Ex: Precisa de ajuda com escada, volume extra..." 
+                        className="min-h-[48px] rounded-xl border-slate-200" 
+                        value={observations}
+                        onChange={(e) => setObservations(e.target.value)}
                       />
-                      <Label htmlFor="specialEvent" className="cursor-pointer text-xs">
-                        <span className="font-bold">Evento Especial?</span> (+ R$ 15,00)
-                      </Label>
                     </div>
                   </div>
 
-                  {rideType === 'idoso' && (
-                    <Dialog>
-                      <DialogTrigger nativeButton={false} render={
-                        <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl space-y-2 cursor-pointer hover:bg-blue-100 transition-colors">
-                          <p className="text-sm font-bold text-blue-700">👵 Plano Recorrente para Idosos</p>
-                          <p className="text-xs text-blue-600">Deseja contratar um pacote mensal? Ex: 8 corridas/mês com preço fixo.</p>
-                          <span className="text-xs font-bold text-blue-800 underline">Ver planos disponíveis</span>
-                        </div>
-                      } />
-                      <DialogContent className="sm:max-w-[425px]">
-                        <DialogHeader>
-                          <DialogTitle>Planos Mensais - No Corre Mob</DialogTitle>
-                          <DialogDescription>Economize com nossos pacotes recorrentes para idosos.</DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4 py-4">
-                          <Card className="p-4 border-2 border-blue-100 hover:border-blue-600 cursor-pointer transition-colors">
-                            <div className="flex justify-between items-center">
-                              <div>
-                                <p className="font-bold">Plano Essencial</p>
-                                <p className="text-xs text-slate-500">8 corridas por mês</p>
-                              </div>
-                              <p className="text-xl font-bold text-blue-600">R$ 280</p>
-                            </div>
-                          </Card>
-                          <Card className="p-4 border-2 border-blue-100 hover:border-blue-600 cursor-pointer transition-colors">
-                            <div className="flex justify-between items-center">
-                              <div>
-                                <p className="font-bold">Plano Premium</p>
-                                <p className="text-xs text-slate-500">12 corridas por mês</p>
-                              </div>
-                              <p className="text-xl font-bold text-blue-600">R$ 390</p>
-                            </div>
-                          </Card>
-                        </div>
-                        <DialogFooter>
-                          <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white" onClick={() => toast.success('Interesse registrado! Entraremos em contato.')}>
-                            TENHO INTERESSE
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                  )}
-
-                  <div className="space-y-2">
-                    <Label htmlFor="obs">Observações</Label>
-                    <Input id="obs" placeholder="Ex: Precisa de ajuda com escada, volume extra..." className="h-12" />
+                  <div className="pt-4">
+                    <Button 
+                      type="submit" 
+                      className="w-full h-14 text-lg bg-orange-600 hover:bg-orange-700 text-white rounded-xl shadow-lg shadow-orange-100 flex items-center justify-center gap-2 font-bold"
+                    >
+                      <Send size={20} /> CALCULAR ESTIMATIVA
+                    </Button>
                   </div>
-
-                  <Button 
-                    type="submit" 
-                    disabled={isCalculating}
-                    className="w-full h-14 text-lg bg-orange-600 hover:bg-orange-700 text-white rounded-xl shadow-lg shadow-orange-100"
-                  >
-                    {isCalculating ? 'CALCULANDO...' : 'CALCULAR ESTIMATIVA'}
-                  </Button>
+                  
+                  <p className="text-center text-xs text-slate-400 mt-4">
+                    Ao clicar, você será redirecionado para o nosso WhatsApp oficial para receber o orçamento.
+                  </p>
                 </form>
-
-                {quote && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="mt-8 p-6 rounded-2xl bg-orange-50 border border-orange-100 space-y-4"
-                  >
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <p className="text-sm text-orange-600 font-bold uppercase tracking-wider">Valor Estimado</p>
-                        <p className="text-4xl font-extrabold text-slate-900">R$ {quote.estimatedValue.toFixed(2)}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-orange-600 font-bold uppercase tracking-wider">Tempo Chegada</p>
-                        <p className="text-2xl font-bold text-slate-900">{quote.estimatedTime}</p>
-                      </div>
-                    </div>
-
-                    <div className="bg-white/50 rounded-xl p-4 space-y-2 text-sm border border-orange-100">
-                      <p className="font-bold text-slate-700 mb-2">Detalhamento do Preço:</p>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Distância Total:</span>
-                        <span className="font-bold text-slate-900">{quote.distanceKm.toFixed(1)} km</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Taxa Base (Demanda):</span>
-                        <span className="font-medium">R$ {quote.breakdown.base.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-slate-500">Distância Percorrida:</span>
-                        <span className="font-medium">R$ {quote.breakdown.distance.toFixed(2)}</span>
-                      </div>
-                      {quote.breakdown.surcharge > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-slate-500">Adicional de Serviço:</span>
-                          <span className="font-medium">R$ {quote.breakdown.surcharge.toFixed(2)}</span>
-                        </div>
-                      )}
-                      {quote.breakdown.peakAdjustment > 0 && (
-                        <div className="flex justify-between text-orange-600 font-bold">
-                          <span>Ajuste de Pico / Evento:</span>
-                          <span>+ R$ {quote.breakdown.peakAdjustment.toFixed(2)}</span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
-                      <Button className="h-12 bg-slate-900 hover:bg-slate-800 text-white rounded-xl" onClick={startPayment}>
-                        PAGAR E CONFIRMAR AGORA
-                      </Button>
-                      <Button variant="outline" className="h-12 border-2 border-orange-200 text-orange-600 hover:bg-orange-50 rounded-xl flex flex-col items-center justify-center leading-tight" onClick={handleWhatsApp}>
-                        <span>FALAR COM ATENDIMENTO</span>
-                        <span className="text-xs text-orange-400 font-normal">(11) 93910-4626</span>
-                      </Button>
-                    </div>
-                  </motion.div>
-                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -1018,54 +382,19 @@ export default function App() {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="relative">
-                  {isLoaded && isMapConfigured ? (
-                    <GoogleMap
-                      mapContainerStyle={mapContainerStyle}
-                      center={driverInfo?.location || defaultCenter}
-                      zoom={15}
-                    >
-                      {driverInfo && (
-                        <Marker 
-                          position={driverInfo.location} 
-                          label={{
-                            text: "HB20",
-                            className: "bg-white px-2 py-1 rounded shadow-sm font-bold text-xs border border-slate-200"
-                          }}
-                        />
-                      )}
-                    </GoogleMap>
-                  ) : (
-                    <div className="h-[400px] bg-slate-100 flex flex-col items-center justify-center text-slate-400 p-8 text-center gap-4">
-                      <div className="h-16 w-16 rounded-full bg-slate-200 flex items-center justify-center text-slate-400">
-                        <MapPin size={32} />
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-600">
-                          {!isMapConfigured ? "Configuração de Mapa Necessária" : "Carregando mapa..."}
-                        </p>
-                        {!isMapConfigured && (
-                          <div className="mt-4 p-4 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3">
-                            <div className="h-8 w-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center shrink-0">
-                              <AlertCircle size={18} />
-                            </div>
-                            <div className="flex-1">
-                              <p className="text-sm font-bold text-red-900">Sugestões de Endereço Desativadas</p>
-                              <p className="text-xs text-red-700 mt-1 leading-relaxed">
-                                A lista de sugestões do Google Maps não está aparecendo porque a chave de API não foi configurada. 
-                                <strong> Para ativar as sugestões:</strong>
-                              </p>
-                              <ul className="text-[10px] text-red-600 mt-2 list-disc pl-4 space-y-1">
-                                <li>Acesse as <strong>Configurações (Settings)</strong> do AI Studio.</li>
-                                <li>Vá em <strong>Secrets</strong>.</li>
-                                <li>Adicione <strong>VITE_GOOGLE_MAPS_API_KEY</strong> com sua chave do Google Cloud.</li>
-                                <li>Certifique-se de que a <strong>Places API</strong> está ativada no seu console do Google Cloud.</li>
-                              </ul>
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                  <div className="h-[300px] bg-slate-100 flex flex-col items-center justify-center text-slate-400 p-8 text-center gap-4">
+                    <div className="h-16 w-16 rounded-full bg-slate-200 flex items-center justify-center text-slate-400">
+                      <MapPin size={32} />
                     </div>
-                  )}
+                    <div>
+                      <p className="font-bold text-slate-600">
+                        Rastreamento via WhatsApp Ativo
+                      </p>
+                      <p className="text-xs text-slate-500 mt-2 max-w-xs mx-auto">
+                        Para sua segurança, o motorista compartilha a localização em tempo real diretamente no chat do WhatsApp.
+                      </p>
+                    </div>
+                  </div>
                   
                   {driverInfo && (
                     <div className="absolute bottom-4 left-4 right-4 bg-white p-4 rounded-2xl shadow-2xl border border-slate-100 flex items-center justify-between">
@@ -1109,7 +438,7 @@ export default function App() {
                   <div className="flex items-center gap-3 p-4 bg-orange-50 rounded-xl border border-orange-100">
                     <div className="h-10 w-10 rounded-full bg-orange-600 text-white flex items-center justify-center shrink-0 overflow-hidden">
                       <img 
-                        src="input_file_1.png" 
+                        src="input_file_0.png" 
                         alt="Juan" 
                         className="h-full w-full object-cover"
                         referrerPolicy="no-referrer"
@@ -1155,7 +484,7 @@ export default function App() {
                     <div className="flex items-center gap-4">
                       <div className="h-16 w-16 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 overflow-hidden border-2 border-orange-200">
                         <img 
-                          src="input_file_1.png" 
+                          src="input_file_0.png" 
                           alt="Juan" 
                           className="h-full w-full object-cover"
                           referrerPolicy="no-referrer"
@@ -1297,31 +626,6 @@ export default function App() {
 
         </Tabs>
       </main>
-
-      {/* Payment Modal */}
-      <Dialog open={isPaymentModalOpen} onOpenChange={setIsPaymentModalOpen}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Pagamento Seguro</DialogTitle>
-            <DialogDescription>
-              Finalize o pagamento da sua corrida de R$ {quote?.estimatedValue.toFixed(2)}.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            {clientSecret && (
-              <Elements stripe={stripePromise} options={{ clientSecret }}>
-                <PaymentForm 
-                  amount={quote?.estimatedValue || 0} 
-                  onSuccess={() => {
-                    setIsPaymentModalOpen(false);
-                    toast.success('Corrida confirmada! Motorista a caminho.');
-                  }} 
-                />
-              </Elements>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Floating Contact Button */}
       <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-50 items-end">
