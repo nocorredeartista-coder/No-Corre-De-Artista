@@ -50,7 +50,7 @@ export default function App() {
         description: "Deseja agendar o transporte agora para garantir sua pontualidade?",
         action: {
           label: "Agendar",
-          onClick: () => setActiveTab('schedule'),
+          onClick: () => setActiveTab('quote'),
         },
       });
     }, 10000); // Show after 10 seconds
