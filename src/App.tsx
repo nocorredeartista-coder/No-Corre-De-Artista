@@ -74,6 +74,12 @@ export default function App() {
     { name: 'Ana', rating: 5, photo: 'https://picsum.photos/seed/ana/100' }
   ]);
   const [feedback, setFeedback] = React.useState('');
+  const [juanReviews, setJuanReviews] = React.useState<{ name: string; rating: number; comment: string; date: string }[]>([
+    { name: 'Ricardo M.', rating: 5, comment: 'Juan é nota 10! Muito pontual e o carro estava impecável. Recomendo a todos.', date: 'Há 2 dias' },
+    { name: 'Letícia G.', rating: 5, comment: 'Sempre solicito o Juan para levar meus equipamentos de som. Muito cuidadoso e prestativo.', date: 'Há 1 semana' },
+    { name: 'Marcos P.', rating: 5, comment: 'Ótima conversa e direção muito segura. Cheguei no horário para minha consulta.', date: 'Há 2 semanas' },
+    { name: 'Dona Arlete', rating: 5, comment: 'Um cavalheiro. Me ajudou com as sacolas e foi muito paciente.', date: 'Há 1 mês' }
+  ]);
 
   const handleQuote = (e: React.FormEvent) => {
     e.preventDefault();
@@ -477,9 +483,10 @@ Gostaria de receber uma estimativa.`;
                 <CardDescription className="text-orange-100">Sua opinião é fundamental para mantermos a qualidade.</CardDescription>
               </CardHeader>
               <CardContent className="p-8 space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
                   {/* Rate Driver */}
-                  <div className="relative overflow-hidden rounded-2xl p-6 border border-slate-100 bg-white shadow-sm">
+                  <div className="space-y-6">
+                    <div className="relative overflow-hidden rounded-2xl p-6 border border-slate-100 bg-white shadow-sm">
                     <div className="relative z-10 space-y-6">
                       <div className="flex items-center gap-4">
                         <motion.div 
@@ -526,6 +533,17 @@ Gostaria de receber uma estimativa.`;
                     <Button 
                       className="w-full bg-orange-600 hover:bg-orange-700 text-white h-12 rounded-xl font-bold"
                       onClick={() => {
+                        if (!feedback || driverRating === 0) {
+                          toast.error('Por favor, dê uma nota e escreva um comentário.');
+                          return;
+                        }
+                        const newReview = {
+                          name: 'Você',
+                          rating: driverRating,
+                          comment: feedback,
+                          date: 'Agora mesmo'
+                        };
+                        setJuanReviews([newReview, ...juanReviews]);
                         toast.success('Obrigado pelo seu feedback!');
                         setFeedback('');
                         setDriverRating(0);
@@ -535,9 +553,45 @@ Gostaria de receber uma estimativa.`;
                     </Button>
                   </div>
                 </div>
+              </div>
 
-                {/* Driver Rates Passenger */}
-                  <div className="space-y-6 border-l md:pl-12 border-slate-100">
+                  {/* Juan's Public Reviews */}
+                  <div className="space-y-6 lg:border-l lg:pl-12 border-slate-100">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-bold text-lg text-slate-900 flex items-center gap-2">
+                        <ThumbsUp size={20} className="text-orange-600" /> O que dizem sobre o Juan
+                      </h4>
+                      <div className="flex items-center gap-1 bg-orange-100 px-2 py-1 rounded-lg text-orange-700 font-bold text-sm">
+                        <Star size={14} fill="currentColor" /> 5.0
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                      {juanReviews.map((review, i) => (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.1 }}
+                          key={i} 
+                          className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-2"
+                        >
+                          <div className="flex justify-between items-start">
+                            <p className="font-bold text-slate-900 text-sm">{review.name}</p>
+                            <span className="text-[10px] text-slate-400">{review.date}</span>
+                          </div>
+                          <div className="flex gap-0.5">
+                            {[...Array(5)].map((_, idx) => (
+                              <Star key={idx} size={12} className={idx < review.rating ? "text-yellow-400" : "text-slate-200"} fill={idx < review.rating ? "currentColor" : "none"} />
+                            ))}
+                          </div>
+                          <p className="text-xs text-slate-600 leading-relaxed">"{review.comment}"</p>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Driver Rates Passenger */}
+                  <div className="space-y-6 lg:border-l lg:pl-12 border-slate-100">
                     <div className="flex items-center gap-4">
                       <div className="h-16 w-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 overflow-hidden border-2 border-slate-200">
                         <User size={32} />
