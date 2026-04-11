@@ -436,14 +436,13 @@ Gostaria de receber uma estimativa.`;
                   </div>
 
                   <div className="flex items-center gap-3 p-4 bg-orange-50 rounded-xl border border-orange-100">
-                    <div className="h-10 w-10 rounded-full bg-orange-600 text-white flex items-center justify-center shrink-0 overflow-hidden">
-                      <img 
-                        src="input_file_0.png" 
-                        alt="Juan" 
-                        className="h-full w-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
+                    <motion.div 
+                      animate={{ scale: [1, 1.1, 1] }}
+                      transition={{ duration: 2, repeat: Infinity }}
+                      className="h-10 w-10 rounded-full bg-orange-600 text-white flex items-center justify-center shrink-0 overflow-hidden border border-orange-200 shadow-sm"
+                    >
+                      <Car size={20} />
+                    </motion.div>
                     <div className="flex-1">
                       <p className="font-bold text-slate-900">{driverInfo?.driverName?.split(' ')[0] || "Juan"}</p>
                       <p className="text-xs text-slate-600 font-medium">Uber • +1000 avaliações 5 estrelas</p>
@@ -480,24 +479,27 @@ Gostaria de receber uma estimativa.`;
               <CardContent className="p-8 space-y-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                   {/* Rate Driver */}
-                  <div className="space-y-6">
-                    <div className="flex items-center gap-4">
-                      <div className="h-16 w-16 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 overflow-hidden border-2 border-orange-200">
-                        <img 
-                          src="input_file_0.png" 
-                          alt="Juan" 
-                          className="h-full w-full object-cover"
-                          referrerPolicy="no-referrer"
-                        />
+                  <div className="relative overflow-hidden rounded-2xl p-6 border border-slate-100 bg-white shadow-sm">
+                    <div className="relative z-10 space-y-6">
+                      <div className="flex items-center gap-4">
+                        <motion.div 
+                          animate={{ 
+                            scale: [1, 1.05, 1],
+                            boxShadow: ["0px 0px 0px rgba(234, 88, 12, 0)", "0px 0px 20px rgba(234, 88, 12, 0.3)", "0px 0px 0px rgba(234, 88, 12, 0)"]
+                          }}
+                          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                          className="h-20 w-20 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 overflow-hidden border-4 border-orange-500 shadow-lg relative"
+                        >
+                          <Car size={40} />
+                        </motion.div>
+                        <div>
+                          <h4 className="font-bold text-lg text-slate-900">Avaliar Juan</h4>
+                          <p className="text-sm text-slate-500">Motorista Parceiro</p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-bold text-lg text-slate-900">Avaliar Juan</h4>
-                        <p className="text-sm text-slate-500">Motorista Parceiro</p>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label>Sua nota para o motorista</Label>
+                      
+                      <div className="space-y-2">
+                        <Label>Sua nota para o motorista</Label>
                       <div className="flex gap-2">
                         {[1, 2, 3, 4, 5].map((star) => (
                           <button 
@@ -532,8 +534,9 @@ Gostaria de receber uma estimativa.`;
                       ENVIAR AVALIAÇÃO
                     </Button>
                   </div>
+                </div>
 
-                  {/* Driver Rates Passenger */}
+                {/* Driver Rates Passenger */}
                   <div className="space-y-6 border-l md:pl-12 border-slate-100">
                     <div className="flex items-center gap-4">
                       <div className="h-16 w-16 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 overflow-hidden border-2 border-slate-200">
